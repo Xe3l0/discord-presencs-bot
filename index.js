@@ -47,6 +47,12 @@ function updateState(presence) {
       songUrl: songActivity.syncId
         ? `https://open.spotify.com/track/${songActivity.syncId}`
         : null,
+      startTs: songActivity.timestamps?.start
+        ? new Date(songActivity.timestamps.start).getTime()
+        : null,
+      endTs: songActivity.timestamps?.end
+        ? new Date(songActivity.timestamps.end).getTime()
+        : null,
       lastActiveAt: now,
       isActive: true,
     };
@@ -60,6 +66,11 @@ function updateState(presence) {
       details: gameActivity.details || null,
       state: gameActivity.state || null,
       largeImage: gameActivity.assets?.largeImageURL?.() || null,
+      startTs: gameActivity.timestamps?.start
+        ? new Date(gameActivity.timestamps.start).getTime()
+        : lastGame?.name === gameActivity.name
+        ? lastGame.startTs
+        : Date.now(),
       lastActiveAt: now,
       isActive: true,
     };
