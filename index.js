@@ -1,7 +1,3 @@
-// Discord presence-watching bot
-// Watches ONE specific user (you) and exposes their current Spotify + game
-// activity as a small JSON API that your website can poll.
-
 const { Client, GatewayIntentBits, Partials, ActivityType } = require("discord.js");
 const express = require("express");
 
@@ -23,55 +19,63 @@ const client = new Client({
   partials: [Partials.User, Partials.GuildMember],
 });
 
-// In-memory "latest known state" -- good enough for a single-user widget.
-let latestState = {
-  song: null,
-  game: null,
-  updatedAt: null,
-};
+let lastSong = null;
+let lastGame = null;
 
 function extractFromPresence(presence) {
-  const song = presence?.activities?.find((a) => a.name === "Spotify") || null;
-  const game =
+  const songActivity = presence?.activities?.find((a) => a.name === "Spotify") || null;
+  const gameActivity =
     presence?.activities?.find(
       (a) => a.type === ActivityType.Playing && a.name !== "Spotify"
     ) || null;
 
-  return {
-    song: song
-      ? {
-          title: song.details,
-          artist: song.state,
-          album: song.assets?.largeText || null,
-          albumArt: song.assets?.largeImage
-            ? `https://i.scdn.co/image/${song.assets.largeImage.replace("spotify:", "")}`
-            : null,
-          songUrl: song.syncId
-            ? `https://open.spotify.com/track/${song.syncId}`
-            : null,
-        }
-      : null,
-    game: game
-      ? {
-          name: game.name,
-          details: game.details || null,
-          state: game.state || null,
-          largeImage: game.assets?.largeImageURL?.() || null,
-        }
-      : null,
-  };
+  return { songActivity, gameActivity };
+}
+
+function updateState(presence) {
+  const { songActivity, gameActivity } = extractFromPresence(presence);
+  const now = new Date().toISOString();
+
+  if (songActivity) {
+    lastSong = {
+      title: songActivity.details,
+      artist: songActivity.state,
+      album: songActivity.assets?.largeText || null,
+      albumArt: songActivity.assets?.largeImage
+        ? `https://i.scdn.co/image/${songActivity.assets.largeImage.replace("spotify:", "")}`
+        : null,
+      songUrl: songActivity.syncId
+        ? `https://open.spotify.com/track/${songActivity.syncId}`
+        : null,
+      lastActiveAt: now,
+      isActive: true,
+    };
+  } else if (lastSong) {
+    lastSong.isActive = false;
+  }
+
+  if (gameActivity) {
+    lastGame = {
+      name: gameActivity.name,
+      details: gameActivity.details || null,
+      state: gameActivity.state || null,
+      largeImage: gameActivity.assets?.largeImageURL?.() || null,
+      lastActiveAt: now,
+      isActive: true,
+    };
+  } else if (lastGame) {
+    lastGame.isActive = false;
+  }
 }
 
 client.once("ready", async () => {
   console.log(`Logged in as ${client.user.tag}`);
 
-  // Prime the initial state on startup
   for (const guild of client.guilds.cache.values()) {
     try {
       const member = await guild.members.fetch(TARGET_USER_ID);
       if (member?.presence) {
-        const { song, game } = extractFromPresence(member.presence);
-        latestState = { song, game, updatedAt: new Date().toISOString() };
+        updateState(member.presence);
       }
       break;
     } catch {
@@ -82,20 +86,21 @@ client.once("ready", async () => {
 
 client.on("presenceUpdate", (oldPresence, newPresence) => {
   if (!newPresence || newPresence.userId !== TARGET_USER_ID) return;
-
-  const { song, game } = extractFromPresence(newPresence);
-  latestState = { song, game, updatedAt: new Date().toISOString() };
+  updateState(newPresence);
 });
 
 client.login(DISCORD_TOKEN);
 
-// --- Tiny HTTP API ---
 const app = express();
 
 app.get("/status", (req, res) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Cache-Control", "no-store");
-  res.json(latestState);
+  res.json({
+    song: lastSong,
+    game: lastGame,
+    serverTime: new Date().toISOString(),
+  });
 });
 
 app.get("/", (req, res) => {
