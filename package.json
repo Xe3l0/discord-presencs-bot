@@ -1,0 +1,13 @@
+{
+  "name": "discord-presence-bot",
+  "version": "1.0.0",
+  "description": "Watches one Discord user's presence and exposes current Spotify/game activity as JSON.",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "discord.js": "^14.14.1",
+    "express": "^4.19.2"
+  }
+}
