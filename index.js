@@ -112,7 +112,7 @@ async function findGameImageOnWikipedia(gameName) {
     debug.pageTitle = pageTitle || null;
     if (!pageTitle) return { cover: null, debug };
 
-    const imageUrl = `https://en.wikipedia.org/w/api.php?action=query&titles=${encodeURIComponent(pageTitle)}&prop=pageimages&pithumbsize=500&format=json&origin=*`;
+    const imageUrl = `https://en.wikipedia.org/w/api.php?action=query&titles=${encodeURIComponent(pageTitle)}&prop=pageimages&pithumbsize=500&pilicense=any&format=json&origin=*`;
     const imageRes = await fetch(imageUrl);
     const imageData = await imageRes.json();
     const pages = imageData?.query?.pages || {};
