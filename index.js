@@ -108,10 +108,12 @@ async function findGameImageOnWikipedia(gameName) {
     const pageTitle = searchData?.query?.search?.[0]?.title;
     if (!pageTitle) return { cover: null };
 
-    const summaryUrl = `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(pageTitle)}`;
-    const summaryRes = await fetch(summaryUrl);
-    const summaryData = await summaryRes.json();
-    const cover = summaryData?.thumbnail?.source || summaryData?.originalimage?.source || null;
+    const pageUrl = `https://en.wikipedia.org/wiki/${encodeURIComponent(pageTitle.replace(/ /g, "_"))}`;
+    const pageRes = await fetch(pageUrl);
+    const html = await pageRes.text();
+
+    const match = html.match(/<meta property="og:image" content="([^"]+)"/);
+    const cover = match ? match[1] : null;
     return { cover };
   } catch (err) {
     return { cover: null };
