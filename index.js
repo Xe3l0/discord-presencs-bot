@@ -4,7 +4,6 @@ const express = require("express");
 const DISCORD_TOKEN = process.env.DISCORD_TOKEN;
 const TARGET_USER_ID = process.env.TARGET_USER_ID;
 const PORT = process.env.PORT || 3000;
-const RAWG_API_KEY = "cef074605c474781807438136d7719e9";
 
 if (!DISCORD_TOKEN || !TARGET_USER_ID) {
   console.error("Missing DISCORD_TOKEN or TARGET_USER_ID environment variables.");
@@ -91,8 +90,8 @@ app.get("/game-cover", async (req, res) => {
     return res.status(400).json({ error: "missing 'name' query param" });
   }
 
-  const cover = await findGameImageOnWikipedia(gameName);
-  return res.json({ cover });
+  const result = await findGameImageOnWikipedia(gameName);
+  return res.json(result);
 });
 
 app.get("/status", (req, res) => {
@@ -101,25 +100,29 @@ app.get("/status", (req, res) => {
   res.json({ song: lastSong, game: lastGame, serverTime: new Date().toISOString() });
 });
 
-// Looks up a game cover image from Wikipedia's free public API.
-// No signup, no API key, no 2FA -- works immediately.
 async function findGameImageOnWikipedia(gameName) {
+  const debug = {};
   try {
     const searchUrl = `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(gameName + " video game")}&format=json&origin=*`;
     const searchRes = await fetch(searchUrl);
     const searchData = await searchRes.json();
+    debug.searchStatus = searchRes.status;
+    debug.searchResultsCount = searchData?.query?.search?.length || 0;
     const pageTitle = searchData?.query?.search?.[0]?.title;
-    if (!pageTitle) return null;
+    debug.pageTitle = pageTitle || null;
+    if (!pageTitle) return { cover: null, debug };
 
     const imageUrl = `https://en.wikipedia.org/w/api.php?action=query&titles=${encodeURIComponent(pageTitle)}&prop=pageimages&pithumbsize=500&format=json&origin=*`;
     const imageRes = await fetch(imageUrl);
     const imageData = await imageRes.json();
     const pages = imageData?.query?.pages || {};
     const page = Object.values(pages)[0];
-    return page?.thumbnail?.source || null;
+    const cover = page?.thumbnail?.source || null;
+    debug.hasThumbnail = !!cover;
+    return { cover, debug };
   } catch (err) {
-    console.error("Wikipedia lookup failed:", err.message);
-    return null;
+    debug.error = err.message;
+    return { cover: null, debug };
   }
 }
 
