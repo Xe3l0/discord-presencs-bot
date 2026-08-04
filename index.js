@@ -72,8 +72,19 @@ client.once("ready", async () => {
   }
 });
 
+setInterval(async () => {
+  console.log("Performing scheduled reconnect to keep presence data fresh...");
+  try {
+    client.destroy();
+    await client.login(DISCORD_TOKEN);
+  } catch (err) {
+    console.error("Reconnect failed:", err.message);
+  }
+}, 30 * 60 * 1000);
+
 client.on("presenceUpdate", (oldPresence, newPresence) => {
   if (!newPresence || newPresence.userId !== TARGET_USER_ID) return;
+  console.log(`presenceUpdate received for target user at ${new Date().toISOString()}`);
   updateState(newPresence);
 });
 
@@ -121,7 +132,14 @@ app.get("/game-cover", async (req, res) => {
 app.get("/status", (req, res) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Cache-Control", "no-store");
-  res.json({ song: lastSong, game: lastGame, serverTime: new Date().toISOString() });
+  res.json({
+    song: lastSong,
+    game: lastGame,
+    serverTime: new Date().toISOString(),
+    botConnected: client.isReady(),
+    wsStatus: client.ws.status,
+    wsPing: client.ws.ping,
+  });
 });
 
 app.get("/", (req, res) => res.send("Discord presence bot is running."));
