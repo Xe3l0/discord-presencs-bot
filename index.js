@@ -4,7 +4,6 @@ const express = require("express");
 const DISCORD_TOKEN = process.env.DISCORD_TOKEN;
 const TARGET_USER_ID = process.env.TARGET_USER_ID;
 const PORT = process.env.PORT || 3000;
-const SGDB_API_KEY = "f0302142a3f69766d96574fc1e576fa2";
 
 if (!DISCORD_TOKEN || !TARGET_USER_ID) {
   console.error("Missing DISCORD_TOKEN or TARGET_USER_ID environment variables.");
@@ -62,15 +61,20 @@ function updateState(presence) {
   }
 }
 
-client.once("ready", async () => {
-  console.log(`Logged in as ${client.user.tag}`);
+async function refreshFromDiscord() {
   for (const guild of client.guilds.cache.values()) {
     try {
-      const member = await guild.members.fetch(TARGET_USER_ID);
-      if (member?.presence) updateState(member.presence);
-      break;
+      const member = await guild.members.fetch({ user: TARGET_USER_ID, force: true });
+      updateState(member?.presence || null);
+      return;
     } catch {}
   }
+}
+
+client.once("ready", async () => {
+  console.log(`Logged in as ${client.user.tag}`);
+  await refreshFromDiscord();
+  setInterval(refreshFromDiscord, 20000);
 });
 
 client.on("presenceUpdate", (oldPresence, newPresence) => {
@@ -82,7 +86,9 @@ client.login(DISCORD_TOKEN);
 
 const app = express();
 
-async function findGameCover(gameName) {
+const SGDB_API_KEY = "f0302142a3f69766d96574fc1e576fa2";
+
+async function findGameImageOnWikipedia(gameName) {
   try {
     const searchUrl = `https://www.steamgriddb.com/api/v2/search/autocomplete/${encodeURIComponent(gameName)}`;
     const searchRes = await fetch(searchUrl, {
@@ -113,7 +119,7 @@ app.get("/game-cover", async (req, res) => {
     return res.status(400).json({ error: "missing 'name' query param" });
   }
 
-  const result = await findGameCover(gameName);
+  const result = await findGameImageOnWikipedia(gameName);
   return res.json(result);
 });
 
