@@ -82,12 +82,6 @@ client.login(DISCORD_TOKEN);
 
 const app = express();
 
-app.get("/status", (req, res) => {
-  res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Cache-Control", "no-store");
-  res.json({ song: lastSong, game: lastGame, serverTime: new Date().toISOString() });
-});
-
 app.get("/game-cover", async (req, res) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Cache-Control", "s-maxage=3600");
@@ -97,30 +91,37 @@ app.get("/game-cover", async (req, res) => {
     return res.status(400).json({ error: "missing 'name' query param" });
   }
 
-  try {
-    const url = `https://api.rawg.io/api/games?key=${RAWG_API_KEY}&search=${encodeURIComponent(gameName)}&page_size=1`;
-    const rawgRes = await fetch(url);
-    const rawText = await rawgRes.text();
-
-    let data;
-    try {
-      data = JSON.parse(rawText);
-    } catch {
-      return res.status(200).json({
-        cover: null,
-        error: "rawg_non_json_response",
-        rawgStatus: rawgRes.status,
-        rawgBodyPreview: rawText.slice(0, 200),
-      });
-    }
-
-    const cover = data?.results?.[0]?.background_image || null;
-    return res.json({ cover });
-  } catch (err) {
-    console.error(err);
-    return res.status(500).json({ cover: null, error: "rawg_fetch_failed", details: err.message });
-  }
+  const cover = await findGameImageOnWikipedia(gameName);
+  return res.json({ cover });
 });
+
+app.get("/status", (req, res) => {
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Cache-Control", "no-store");
+  res.json({ song: lastSong, game: lastGame, serverTime: new Date().toISOString() });
+});
+
+// Looks up a game cover image from Wikipedia's free public API.
+// No signup, no API key, no 2FA -- works immediately.
+async function findGameImageOnWikipedia(gameName) {
+  try {
+    const searchUrl = `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(gameName + " video game")}&format=json&origin=*`;
+    const searchRes = await fetch(searchUrl);
+    const searchData = await searchRes.json();
+    const pageTitle = searchData?.query?.search?.[0]?.title;
+    if (!pageTitle) return null;
+
+    const imageUrl = `https://en.wikipedia.org/w/api.php?action=query&titles=${encodeURIComponent(pageTitle)}&prop=pageimages&pithumbsize=500&format=json&origin=*`;
+    const imageRes = await fetch(imageUrl);
+    const imageData = await imageRes.json();
+    const pages = imageData?.query?.pages || {};
+    const page = Object.values(pages)[0];
+    return page?.thumbnail?.source || null;
+  } catch (err) {
+    console.error("Wikipedia lookup failed:", err.message);
+    return null;
+  }
+}
 
 app.get("/", (req, res) => res.send("Discord presence bot is running."));
 
