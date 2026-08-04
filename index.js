@@ -61,20 +61,15 @@ function updateState(presence) {
   }
 }
 
-async function refreshFromDiscord() {
-  for (const guild of client.guilds.cache.values()) {
-    try {
-      const member = await guild.members.fetch({ user: TARGET_USER_ID, force: true });
-      updateState(member?.presence || null);
-      return;
-    } catch {}
-  }
-}
-
 client.once("ready", async () => {
   console.log(`Logged in as ${client.user.tag}`);
-  await refreshFromDiscord();
-  setInterval(refreshFromDiscord, 20000);
+  for (const guild of client.guilds.cache.values()) {
+    try {
+      const member = await guild.members.fetch(TARGET_USER_ID);
+      if (member?.presence) updateState(member.presence);
+      break;
+    } catch {}
+  }
 });
 
 client.on("presenceUpdate", (oldPresence, newPresence) => {
