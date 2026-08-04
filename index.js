@@ -4,6 +4,12 @@ const express = require("express");
 const DISCORD_TOKEN = process.env.DISCORD_TOKEN;
 const TARGET_USER_ID = process.env.TARGET_USER_ID;
 const PORT = process.env.PORT || 3000;
+const RAWG_API_KEY = "cef074605c474781807438136d7719e9";
+
+if (!DISCORD_TOKEN || !TARGET_USER_ID) {
+  console.error("Missing DISCORD_TOKEN or TARGET_USER_ID environment variables.");
+  process.exit(1);
+}
 
 const client = new Client({
   intents: [
@@ -80,6 +86,29 @@ app.get("/status", (req, res) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Cache-Control", "no-store");
   res.json({ song: lastSong, game: lastGame, serverTime: new Date().toISOString() });
+});
+
+// Proxies RAWG game-cover lookups through this same Railway server,
+// since api.rawg.io can be unreachable directly from some networks/browsers.
+app.get("/game-cover", async (req, res) => {
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Cache-Control", "s-maxage=3600");
+
+  const gameName = req.query.name;
+  if (!gameName) {
+    return res.status(400).json({ error: "missing 'name' query param" });
+  }
+
+  try {
+    const url = `https://api.rawg.io/api/games?key=${RAWG_API_KEY}&search=${encodeURIComponent(gameName)}&page_size=1`;
+    const rawgRes = await fetch(url);
+    const data = await rawgRes.json();
+    const cover = data?.results?.[0]?.background_image || null;
+    return res.json({ cover });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ cover: null, error: "rawg_fetch_failed" });
+  }
 });
 
 app.get("/", (req, res) => res.send("Discord presence bot is running."));
