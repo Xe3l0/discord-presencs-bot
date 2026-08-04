@@ -100,7 +100,20 @@ app.get("/game-cover", async (req, res) => {
   try {
     const url = `https://api.rawg.io/api/games?key=${RAWG_API_KEY}&search=${encodeURIComponent(gameName)}&page_size=1`;
     const rawgRes = await fetch(url);
-    const data = await rawgRes.json();
+    const rawText = await rawgRes.text();
+
+    let data;
+    try {
+      data = JSON.parse(rawText);
+    } catch {
+      return res.status(200).json({
+        cover: null,
+        error: "rawg_non_json_response",
+        rawgStatus: rawgRes.status,
+        rawgBodyPreview: rawText.slice(0, 200),
+      });
+    }
+
     const cover = data?.results?.[0]?.background_image || null;
     return res.json({ cover });
   } catch (err) {
