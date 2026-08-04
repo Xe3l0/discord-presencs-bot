@@ -101,28 +101,20 @@ app.get("/status", (req, res) => {
 });
 
 async function findGameImageOnWikipedia(gameName) {
-  const debug = {};
   try {
     const searchUrl = `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(gameName + " video game")}&format=json&origin=*`;
     const searchRes = await fetch(searchUrl);
     const searchData = await searchRes.json();
-    debug.searchStatus = searchRes.status;
-    debug.searchResultsCount = searchData?.query?.search?.length || 0;
     const pageTitle = searchData?.query?.search?.[0]?.title;
-    debug.pageTitle = pageTitle || null;
-    if (!pageTitle) return { cover: null, debug };
+    if (!pageTitle) return { cover: null };
 
-    const imageUrl = `https://en.wikipedia.org/w/api.php?action=query&titles=${encodeURIComponent(pageTitle)}&prop=pageimages&pithumbsize=500&pilicense=any&format=json&origin=*`;
-    const imageRes = await fetch(imageUrl);
-    const imageData = await imageRes.json();
-    const pages = imageData?.query?.pages || {};
-    const page = Object.values(pages)[0];
-    const cover = page?.thumbnail?.source || null;
-    debug.hasThumbnail = !!cover;
-    return { cover, debug };
+    const summaryUrl = `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(pageTitle)}`;
+    const summaryRes = await fetch(summaryUrl);
+    const summaryData = await summaryRes.json();
+    const cover = summaryData?.thumbnail?.source || summaryData?.originalimage?.source || null;
+    return { cover };
   } catch (err) {
-    debug.error = err.message;
-    return { cover: null, debug };
+    return { cover: null };
   }
 }
 
