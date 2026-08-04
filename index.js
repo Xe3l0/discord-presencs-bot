@@ -4,6 +4,7 @@ const express = require("express");
 const DISCORD_TOKEN = process.env.DISCORD_TOKEN;
 const TARGET_USER_ID = process.env.TARGET_USER_ID;
 const PORT = process.env.PORT || 3000;
+const SGDB_API_KEY = "f0302142a3f69766d96574fc1e576fa2";
 
 if (!DISCORD_TOKEN || !TARGET_USER_ID) {
   console.error("Missing DISCORD_TOKEN or TARGET_USER_ID environment variables.");
@@ -81,6 +82,28 @@ client.login(DISCORD_TOKEN);
 
 const app = express();
 
+async function findGameCover(gameName) {
+  try {
+    const searchUrl = `https://www.steamgriddb.com/api/v2/search/autocomplete/${encodeURIComponent(gameName)}`;
+    const searchRes = await fetch(searchUrl, {
+      headers: { Authorization: `Bearer ${SGDB_API_KEY}` },
+    });
+    const searchData = await searchRes.json();
+    const gameId = searchData?.data?.[0]?.id;
+    if (!gameId) return { cover: null };
+
+    const gridUrl = `https://www.steamgriddb.com/api/v2/grids/game/${gameId}`;
+    const gridRes = await fetch(gridUrl, {
+      headers: { Authorization: `Bearer ${SGDB_API_KEY}` },
+    });
+    const gridData = await gridRes.json();
+    const cover = gridData?.data?.[0]?.url || null;
+    return { cover };
+  } catch (err) {
+    return { cover: null };
+  }
+}
+
 app.get("/game-cover", async (req, res) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Cache-Control", "s-maxage=3600");
@@ -90,7 +113,7 @@ app.get("/game-cover", async (req, res) => {
     return res.status(400).json({ error: "missing 'name' query param" });
   }
 
-  const result = await findGameImageOnWikipedia(gameName);
+  const result = await findGameCover(gameName);
   return res.json(result);
 });
 
@@ -99,26 +122,6 @@ app.get("/status", (req, res) => {
   res.setHeader("Cache-Control", "no-store");
   res.json({ song: lastSong, game: lastGame, serverTime: new Date().toISOString() });
 });
-
-async function findGameImageOnWikipedia(gameName) {
-  try {
-    const searchUrl = `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(gameName + " video game")}&format=json&origin=*`;
-    const searchRes = await fetch(searchUrl);
-    const searchData = await searchRes.json();
-    const pageTitle = searchData?.query?.search?.[0]?.title;
-    if (!pageTitle) return { cover: null };
-
-    const pageUrl = `https://en.wikipedia.org/wiki/${encodeURIComponent(pageTitle.replace(/ /g, "_"))}`;
-    const pageRes = await fetch(pageUrl);
-    const html = await pageRes.text();
-
-    const match = html.match(/<meta property="og:image" content="([^"]+)"/);
-    const cover = match ? match[1] : null;
-    return { cover };
-  } catch (err) {
-    return { cover: null };
-  }
-}
 
 app.get("/", (req, res) => res.send("Discord presence bot is running."));
 
