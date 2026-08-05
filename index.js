@@ -72,15 +72,12 @@ client.once("ready", async () => {
   }
 });
 
-setInterval(async () => {
-  console.log("Performing scheduled reconnect to keep presence data fresh...");
-  try {
-    client.destroy();
-    await client.login(DISCORD_TOKEN);
-  } catch (err) {
-    console.error("Reconnect failed:", err.message);
+setInterval(() => {
+  if (!client.isReady()) {
+    console.log("Bot is disconnected from Discord. Exiting so Railway restarts the process...");
+    process.exit(1);
   }
-}, 30 * 60 * 1000);
+}, 5 * 60 * 1000);
 
 client.on("presenceUpdate", (oldPresence, newPresence) => {
   if (!newPresence || newPresence.userId !== TARGET_USER_ID) return;
